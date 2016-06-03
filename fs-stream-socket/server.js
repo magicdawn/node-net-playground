@@ -2,6 +2,7 @@ const net = require('net');
 const debug = require('debug')('app:server');
 const fs = require('fs');
 const path = require('path');
+const _ = require('lodash');
 
 const server = net.createServer(function(socket){
 
@@ -10,10 +11,19 @@ const server = net.createServer(function(socket){
 		var cmd = data.toString().replace(/(\r?\n)+$/, '');
 		debug('receive command: %s', cmd);
 
-		if(cmd === 'file') {
-			return sendFile(socket, '/Users/magicdawn/Downloads/soft/sourcetree.dmg');
-		}
+		// heart
+		if(cmd === 'ping') return socket.write('pong\n');
 
+		// hello world
+		if(cmd === 'hello') return socket.write('world\n');
+
+		if(/^file /.test(cmd)) {
+			var file = _.trim(cmd.slice(5));
+			file = __dirname + '/public/send/' + file;
+			if(fs.existsSync(file)) {
+				sendFile(socket, file);
+			}
+		}
 	});
 });
 

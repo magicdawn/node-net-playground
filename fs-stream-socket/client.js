@@ -4,17 +4,26 @@ var stream = require('stream');
 var debug = require('debug')('app:client');
 var fs = require('fs');
 var path = require('path');
+var _ = require('lodash');
 
 socket.on('connect', function() {
   console.log('connected');
-  socket.write('file');
+  socket.write('file HELLO.txt');
 });
 
 socket.on('data', function(chunk) {
 
-  // debug('on data, chunk len = %s', chunk.length);
+  // debug
+  if(!this.IS_RECEIVING_FILE){
+    if(chunk.length < 10){
+      debug('on data, chunk len = %s, chunk = %s', chunk.length, _.trim(chunk.toString()));
+    } else {
+      debug('on data, chunk len = %s', chunk.length);
+    }
+  }
+    
 
-  if (!socket.receivingFile) {
+  if (!socket.IS_RECEIVING_FILE) {
     var start;
     if (start = chunk.indexOf('---file') > -1) {
       var end = chunk.indexOf('file---\n', start + 6); // 到第一个换行
@@ -24,40 +33,51 @@ socket.on('data', function(chunk) {
       meta = JSON.parse(meta);
       debug('receive: %j', meta);
 
-      socket.receivingFile = true;
-      var fileStream = fs.createWriteStream(__dirname + '/ignore/receive/' + meta.filename);
-
-      // now
+      // receive
       var content = chunk.slice(end + 8);
-      var len = content.length;
-      if(len > 0){
-        debug('writing first %s bytes, first chunk len = %s', len, chunk.length);
-        fileStream.write(content);
-      }
-
-      // left
-      if (len < meta.size) {
-        var transform = stream.Transform({
-          transform: function(chunk, enc, cb) {
-            if (len + chunk.length < meta.size) {
-              len += chunk.length;
-              this.push(chunk);
-              cb();
-            } else {
-              this.push(chunk.slice(0, meta.size - len));
-              
-              socket.unpipe(transform);
-              this.push(null);
-              socket.receivingFile = false;
-
-              cb();
-            }
-          }
-        });
-
-        socket.pipe(transform);
-        transform.pipe(fileStream);
-      }
+      socket.IS_RECEIVING_FILE = true;
+      receiveFile(socket, meta, chunk, content, function(){
+        socket.resume();
+        socket.write('file HELLO2.txt');
+      });
     }
   }
 });
+
+function receiveFile(socket, meta, chunk, content, callback){
+
+  // create file
+  var fileStream = fs.createWriteStream(__dirname + '/public/receive/' + meta.filename);
+
+  var len = (content && content.length) || 0;
+  if(len > 0){
+    debug('writing first %s bytes, first chunk len = %s', len, chunk.length);
+    fileStream.write(content);
+  }
+
+  // left
+  if (len < meta.size) {
+    var transform = stream.Transform({
+      transform: function(chunk, enc, cb) {
+        if (len + chunk.length < meta.size) {
+          len += chunk.length;
+          this.push(chunk);
+          cb();
+        } else {
+          this.push(chunk.slice(0, meta.size - len));
+          
+          socket.unpipe(transform);
+          socket.IS_RECEIVING_FILE = false;
+          this.push(null);
+          debug('finish writing file');
+          callback && process.nextTick(callback);
+
+          cb();
+        }
+      }
+    });
+
+    socket.pipe(transform);
+    transform.pipe(fileStream);
+  }
+}
