@@ -14,14 +14,13 @@ socket.on('connect', function() {
 socket.on('data', function(chunk) {
 
   // debug
-  if(!this.IS_RECEIVING_FILE){
-    if(chunk.length < 10){
+  if (!this.IS_RECEIVING_FILE) {
+    if (chunk.length < 10) {
       debug('on data, chunk len = %s, chunk = %s', chunk.length, _.trim(chunk.toString()));
     } else {
       debug('on data, chunk len = %s', chunk.length);
     }
   }
-    
 
   if (!socket.IS_RECEIVING_FILE) {
     var start;
@@ -36,7 +35,7 @@ socket.on('data', function(chunk) {
       // receive
       var content = chunk.slice(end + 8);
       socket.IS_RECEIVING_FILE = true;
-      receiveFile(socket, meta, chunk, content, function(){
+      receiveFile(socket, meta, chunk, content, function() {
         socket.resume();
         socket.write('file HELLO2.txt');
       });
@@ -44,13 +43,13 @@ socket.on('data', function(chunk) {
   }
 });
 
-function receiveFile(socket, meta, chunk, content, callback){
+function receiveFile(socket, meta, chunk, content, callback) {
 
   // create file
   var fileStream = fs.createWriteStream(__dirname + '/public/receive/' + meta.filename);
 
   var len = (content && content.length) || 0;
-  if(len > 0){
+  if (len > 0) {
     debug('writing first %s bytes, first chunk len = %s', len, chunk.length);
     fileStream.write(content);
   }
@@ -65,7 +64,7 @@ function receiveFile(socket, meta, chunk, content, callback){
           cb();
         } else {
           this.push(chunk.slice(0, meta.size - len));
-          
+
           socket.unpipe(transform);
           socket.IS_RECEIVING_FILE = false;
           this.push(null);
@@ -79,5 +78,8 @@ function receiveFile(socket, meta, chunk, content, callback){
 
     socket.pipe(transform);
     transform.pipe(fileStream);
+  } else {
+    fileStream.end();
+    socket.IS_RECEIVING_FILE = false;
   }
 }
